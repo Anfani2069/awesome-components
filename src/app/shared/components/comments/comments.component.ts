@@ -13,6 +13,7 @@ import {
   transition,
   trigger
 } from "@angular/animations";
+import {ComplexFormComponent} from "../../../complex-form/components/complex-form/complex-form.component";
 
 @Component({
   selector: 'app-comments',

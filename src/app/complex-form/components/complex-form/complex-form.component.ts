@@ -1,6 +1,8 @@
 import {Component, OnInit} from '@angular/core';
 import {AbstractControl, FormBuilder, FormControl, FormGroup, Validators} from "@angular/forms";
 import {map, Observable, startWith, tap} from "rxjs";
+import {ComplexFormService} from "../../services/complex-form.service";
+import {confirmEqualValidator} from "../../validators/confirm-equal.validator";
 
 @Component({
     selector: 'app-complex-form',
@@ -9,6 +11,7 @@ import {map, Observable, startWith, tap} from "rxjs";
 })
 export class ComplexFormComponent implements OnInit {
 
+    loading = false;
     mainForm!: FormGroup;
     personalInfoForm!: FormGroup;
     contactPreferenceCtrl!: FormControl;
@@ -22,9 +25,10 @@ export class ComplexFormComponent implements OnInit {
 
     showEmailCtrl$!: Observable<boolean>;
     showPhoneCtrl$!: Observable<boolean>;
+    showEmailError$!: Observable<boolean>;
+    showPasswordError$!: Observable<boolean>;
 
-
-    constructor(private formBuilder: FormBuilder) {
+    constructor(private formBuilder: FormBuilder, private complexFormService: ComplexFormService) {
     }
 
     ngOnInit(): void {
@@ -53,6 +57,9 @@ export class ComplexFormComponent implements OnInit {
         this.emailForm = this.formBuilder.group({
             email: this.emailCtrl,
             confirm: this.confirmEmailCtrl
+        }, {
+          validators: [confirmEqualValidator('email', 'confirm')],
+          updateOn: 'blur'
         });
         this.phoneCtrl = this.formBuilder.control('');
         this.passwordCtrl = this.formBuilder.control('', Validators.required);
@@ -61,13 +68,31 @@ export class ComplexFormComponent implements OnInit {
             username: ['', Validators.required],
             password: this.passwordCtrl,
             confirmPassword: this.confirmPasswordCtrl
+        }, {
+          validators: [confirmEqualValidator('password', 'confirmPassword')],
+          updateOn: 'blur'
         });
     }
 
 
-    onSubmitForm() {
-        console.log(this.mainForm.value);
-    }
+  onSubmitForm() {
+    this.loading = true;
+    this.complexFormService.saveUserInfo(this.mainForm.value).pipe(
+      tap(saved => {
+        this.loading = false;
+        if (saved) {
+          this.resetForm();
+        } else {
+          console.error('Echec de l\'enregistrement');
+        }
+      })
+    ).subscribe();
+  }
+
+  private resetForm() {
+    this.mainForm.reset();
+    this.contactPreferenceCtrl.patchValue('email');
+  }
 
   private initFormObservables() {
     this.showEmailCtrl$ = this.contactPreferenceCtrl.valueChanges.pipe(
@@ -79,6 +104,17 @@ export class ComplexFormComponent implements OnInit {
       startWith(this.contactPreferenceCtrl.value),
       map(preference => preference === 'phone'),
       tap(showPhoneCtrl => this.setPhoneValidators(showPhoneCtrl))
+    );
+    this.showEmailError$ = this.emailForm.statusChanges.pipe(
+      map(status => status === 'INVALID' && this.emailCtrl.value && this.confirmEmailCtrl.value
+      )
+    );
+    this.showPasswordError$ = this.loginInfoForm.statusChanges.pipe(
+      map(status => status === 'INVALID' &&
+        this.passwordCtrl.value &&
+        this.confirmPasswordCtrl.value &&
+        this.loginInfoForm.hasError('confirmEqual')
+      )
     );
   }
 
